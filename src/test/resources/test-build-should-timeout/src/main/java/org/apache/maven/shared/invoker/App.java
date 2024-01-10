@@ -19,30 +19,14 @@ package org.apache.maven.shared.invoker;
  * under the License.
  */
 
-import org.apache.maven.shared.utils.cli.CommandLineException;
-
 /**
- * Describes the result of a Maven invocation.
+ * Hello world!
  *
- * @author jdcasey
  */
-public interface InvocationResult
+public class App 
 {
-
-    /**
-     * Gets the exception that possibly occurred during the execution of the command line.
-     *
-     * @return The exception that prevented to invoke Maven or <code>null</code> if the command line was successfully
-     *         processed by the operating system.
-     */
-    CommandLineException getExecutionException();
-
-    /**
-     * Gets the exit code from the Maven invocation. A non-zero value indicates a build failure. <strong>Note:</strong>
-     * This value is undefined if {@link #getExecutionException()} reports an exception.
-     *
-     * @return The exit code from the Maven invocation.
-     */
-    int getExitCode();
-
+    public static void main( String[] args )
+    {
+        System.out.println( "Hello World!" );
+    }
 }

@@ -20,9 +20,8 @@ package org.apache.maven.shared.invoker;
  */
 
 /**
- * Offers a logger that writes to {@link System#out}.
- * 
- * @version $Id: SystemOutLogger.java 661996 2008-05-31 10:50:38Z bentmann $
+ * Offers a logger that writes to {@link java.lang.System#out}.
+ *
  */
 public class SystemOutLogger
     extends PrintStreamLogger
