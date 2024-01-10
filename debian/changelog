@@ -1,3 +1,17 @@
+maven-invoker (3.2.0-1) unstable; urgency=medium
+
+  * Team upload.
+  * New upstream release
+    - Removed the patch
+  * Depend on libmaven-parent-java
+  * Removed the unused build dependency on libmaven-plugin-tools-java
+  * Track and download the new releases from GitHub
+  * Standards-Version updated to 4.6.2
+  * Switch to debhelper level 13
+  * Use salsa.debian.org Vcs-* URLs
+
+ -- Emmanuel Bourg <ebourg@apache.org>  Mon, 09 Jan 2023 20:03:12 +0100
+
 maven-invoker (3.0.0-1) unstable; urgency=medium
 
   * Team upload.

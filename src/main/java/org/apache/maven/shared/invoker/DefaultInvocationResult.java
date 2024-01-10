@@ -19,12 +19,11 @@ package org.apache.maven.shared.invoker;
  * under the License.
  */
 
-import org.codehaus.plexus.util.cli.CommandLineException;
+import org.apache.maven.shared.utils.cli.CommandLineException;
 
 /**
  * Describes the result of a Maven invocation.
- * 
- * @version $Id: DefaultInvocationResult.java 1401842 2012-10-24 19:49:47Z rfscholte $
+ *
  */
 public final class DefaultInvocationResult
     implements InvocationResult
@@ -49,11 +48,21 @@ public final class DefaultInvocationResult
         // hide constructor
     }
 
+    /**
+     * <p>Getter for the field <code>exitCode</code>.</p>
+     *
+     * @return a int.
+     */
     public int getExitCode()
     {
         return exitCode;
     }
 
+    /**
+     * <p>Getter for the field <code>executionException</code>.</p>
+     *
+     * @return a {@link org.apache.maven.shared.utils.cli.CommandLineException} object.
+     */
     public CommandLineException getExecutionException()
     {
         return executionException;

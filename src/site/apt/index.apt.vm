@@ -50,15 +50,9 @@ ${project.name}
   * Global Options:
   
     * Maven-Home Location (location of Maven application directory)
-  
-    * Global Checksum policy (fail/warn, global across defined repositories)
-    
+
     * Local Repository Location
-    
-    * Working Directory
-    
-    * Input/Output Handlers
-    
+
     * API Logger
     
     * Maven Executable
@@ -84,8 +78,12 @@ ${project.name}
     * Update-Snapshots Flag
     
     * Debug Flag (show debug-level output)
+
+    * Quiet Flag (only show errors)
     
     * Show-Errors Flag (show exception stacktraces, but not full debug output)
+
+    * No-Transfer-Progress Flag (Do not display transfer progress when downloading or uploading)
     
     * Inherit-Shell-Environment Flag (inherit envars from the shell used to
       start the current JVM)
@@ -103,6 +101,8 @@ ${project.name}
     * Threadcount ( since Maven3 with -T )
     
     * Toolchains location ( since Maven3 with -t )
+
+    * Additional raw cli options at the start or the end of command line
 
     []
     

@@ -1,5 +1,7 @@
 package org.apache.maven.shared.invoker;
 
+import org.junit.Test;
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -19,30 +21,24 @@ package org.apache.maven.shared.invoker;
  * under the License.
  */
 
-import org.apache.maven.shared.utils.cli.CommandLineException;
-
 /**
- * Describes the result of a Maven invocation.
- *
- * @author jdcasey
+ * Unit test for simple App.
  */
-public interface InvocationResult
+public class AppTest
 {
 
     /**
-     * Gets the exception that possibly occurred during the execution of the command line.
-     *
-     * @return The exception that prevented to invoke Maven or <code>null</code> if the command line was successfully
-     *         processed by the operating system.
+     * Not ending test
+     * @throws InterruptedException 
      */
-    CommandLineException getExecutionException();
+    @Test( timeout = 7000 ) // should be killed in 4 sec by Invoker - Workaround for Windows MSHARED-867
+    public void testApp() throws InterruptedException
+    {
+        while ( true )
+        {
+            Thread.sleep( 1000L );
+        }
 
-    /**
-     * Gets the exit code from the Maven invocation. A non-zero value indicates a build failure. <strong>Note:</strong>
-     * This value is undefined if {@link #getExecutionException()} reports an exception.
-     *
-     * @return The exit code from the Maven invocation.
-     */
-    int getExitCode();
-
+//        assertTrue(  true );
+    }
 }

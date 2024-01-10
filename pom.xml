@@ -25,29 +25,35 @@ under the License.
   <parent>
     <groupId>org.apache.maven.shared</groupId>
     <artifactId>maven-shared-components</artifactId>
-    <version>30</version>
-    <relativePath>../../pom/maven/maven-shared-components/pom.xml</relativePath>
+    <version>35</version>
+    <relativePath />
   </parent>
 
+
   <artifactId>maven-invoker</artifactId>
-  <version>3.0.0</version>
+  <version>3.2.0</version>
 
   <name>Apache Maven Invoker</name>
   <description>A component to programmatically invoke Maven.</description>
 
   <scm>
-    <connection>scm:svn:http://svn.apache.org/repos/asf/maven/shared/tags/maven-invoker-3.0.0</connection>
-    <developerConnection>scm:svn:https://svn.apache.org/repos/asf/maven/shared/tags/maven-invoker-3.0.0</developerConnection>
-    <url>http://svn.apache.org/viewvc/maven/shared/tags/maven-invoker-3.0.0</url>
+    <connection>scm:git:https://gitbox.apache.org/repos/asf/maven-invoker.git</connection>
+    <developerConnection>scm:git:https://gitbox.apache.org/repos/asf/maven-invoker.git</developerConnection>
+    <url>https://github.com/apache/maven-invoker/tree/${project.scm.tag}</url>
+    <tag>maven-invoker-3.2.0</tag>
   </scm>
   <issueManagement>
     <system>jira</system>
-    <url>https://issues.apache.org/jira/browse/MSHARED/component/12326433</url>
+    <url>https://issues.apache.org/jira/issues/?jql=project%20%3D%20MSHARED%20AND%20component%20%3D%20maven-invoker</url>
   </issueManagement>
+  <ciManagement>
+    <system>Jenkins</system>
+    <url>https://ci-maven.apache.org/job/Maven/job/maven-box/job/maven-invoker/</url>
+  </ciManagement>
   <distributionManagement>
     <site>
       <id>apache.website</id>
-      <url>scm:svn:https://svn.apache.org/repos/infra/websites/production/maven/components/${maven.site.path}</url>
+      <url>scm:svn:https://svn.apache.org/repos/asf/maven/website/components/${maven.site.path}</url>
     </site>
   </distributionManagement>
 
@@ -60,29 +66,47 @@ under the License.
     </contributor>
   </contributors>
 
+  <properties>
+    <javaVersion>8</javaVersion>
+    <surefire.version>2.22.2</surefire.version>
+    <project.build.outputTimestamp>2022-04-05T18:44:53Z</project.build.outputTimestamp>
+  </properties>
+
   <dependencies>
     <dependency>
-      <groupId>org.codehaus.plexus</groupId>
-      <artifactId>plexus-utils</artifactId>
-      <version>3.0.24</version>
+      <groupId>org.apache.maven.shared</groupId>
+      <artifactId>maven-shared-utils</artifactId>
+      <version>3.3.4</version>
     </dependency>
     <dependency>
-      <!--
-        ! Can be removed if update to maven-shared-components parent to version 31
-      -->
-      <groupId>org.codehaus.plexus</groupId>
-      <artifactId>plexus-component-annotations</artifactId>
-      <version>1.7</version>
+      <groupId>javax.inject</groupId>
+      <artifactId>javax.inject</artifactId>
+      <version>1</version>
     </dependency>
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
-      <version>4.11</version>
+      <version>4.13.2</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
 
   <build>
+    <pluginManagement>
+      <plugins>
+        <!-- TODO check with next parent pom -->
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-pmd-plugin</artifactId>
+          <version>3.16.0</version>
+        </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>taglist-maven-plugin</artifactId>
+          <version>3.0.0</version>
+        </plugin>
+      </plugins>
+    </pluginManagement>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -102,20 +126,8 @@ under the License.
         </configuration>
       </plugin>
       <plugin>
-        <groupId>org.codehaus.plexus</groupId>
-        <artifactId>plexus-component-metadata</artifactId>
-        <!--
-          ! Can be removed if update to maven-shared-components parent to version 31
-        -->
-        <version>1.7.1</version>
-        <executions>
-          <execution>
-            <id>create-component-descriptor</id>
-            <goals>
-              <goal>generate-metadata</goal>
-            </goals>
-          </execution>
-        </executions>
+        <groupId>org.eclipse.sisu</groupId>
+        <artifactId>sisu-maven-plugin</artifactId>
       </plugin>
     </plugins>
   </build>

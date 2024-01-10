@@ -19,11 +19,6 @@ package org.apache.maven.shared.invoker;
  * under the License.
  */
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -35,93 +30,88 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Set;
 
-import org.codehaus.plexus.util.FileUtils;
-import org.codehaus.plexus.util.IOUtil;
-import org.codehaus.plexus.util.Os;
-import org.codehaus.plexus.util.cli.CommandLineException;
-import org.codehaus.plexus.util.cli.Commandline;
+import org.apache.maven.shared.utils.Os;
+import org.apache.maven.shared.utils.cli.Commandline;
 import org.junit.After;
-import org.junit.Assume;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TemporaryFolder;
+
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeThat;
 
 public class MavenCommandLineBuilderTest
 {
-
-    private List<File> toDelete = new ArrayList<File>();
+    @Rule
+    public TemporaryFolder temporaryFolder = new TemporaryFolder();
 
     private Properties sysProps;
+    private File lrd;
+    private MavenCommandLineBuilder mclb = new MavenCommandLineBuilder();
+    private Commandline cli = new Commandline();
+
+    @Before
+    public void setUp() throws IOException
+    {
+        sysProps = System.getProperties();
+        Properties p = new Properties( sysProps );
+
+        System.setProperties( p );
+
+        lrd = temporaryFolder.newFile();
+
+    }
+
+    @After
+    public void tearDown()
+    {
+        System.setProperties( sysProps );
+    }
+
 
     @Test
     public void testShouldFailToSetLocalRepoLocationGloballyWhenItIsAFile()
-        throws IOException
     {
-        logTestStart();
 
-        File lrd = File.createTempFile( "workdir-test", "file" ).getCanonicalFile();
-
-        toDelete.add( lrd );
-
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setLocalRepositoryDirectory( lrd );
-
-        Commandline cli = new Commandline();
+        mclb.setLocalRepositoryDirectory( lrd );
 
         try
         {
-            tcb.setEnvironmentPaths( newRequest(), cli );
+            mclb.setLocalRepository( newRequest(), cli );
             fail( "Should not set local repo location to point to a file." );
         }
-        catch ( IllegalArgumentException e )
+        catch ( IllegalArgumentException expected )
         {
-            assertTrue( true );
         }
     }
 
     @Test
     public void testShouldFailToSetLocalRepoLocationFromRequestWhenItIsAFile()
-        throws IOException
     {
-        logTestStart();
-
-        File lrd = File.createTempFile( "workdir-test", "file" ).getCanonicalFile();
-
-        toDelete.add( lrd );
-
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-
-        Commandline cli = new Commandline();
-
+        InvocationRequest request = newRequest().setLocalRepositoryDirectory( lrd );
         try
         {
-            tcb.setEnvironmentPaths( newRequest().setLocalRepositoryDirectory( lrd ), cli );
+            mclb.setLocalRepository( request, cli );
             fail( "Should not set local repo location to point to a file." );
         }
-        catch ( IllegalArgumentException e )
+        catch ( IllegalArgumentException expected )
         {
-            assertTrue( true );
         }
     }
 
     @Test
-    public void testShouldSetLocalRepoLocationGlobally()
-        throws Exception
+    public void testShouldSetLocalRepoLocationGlobally() throws IOException
     {
-        logTestStart();
-
-        File tmpDir = getTempDir();
-
-        File lrd = new File( tmpDir, "workdir" ).getCanonicalFile();
-
-        lrd.mkdirs();
-        toDelete.add( lrd );
-
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setLocalRepositoryDirectory( lrd );
-
-        Commandline cli = new Commandline();
-
-        tcb.setEnvironmentPaths( newRequest(), cli );
+        File lrd = temporaryFolder.newFolder( "workdir" ).getCanonicalFile();
+        mclb.setLocalRepositoryDirectory( lrd );
+        mclb.setLocalRepository( newRequest(), cli );
 
         assertArgumentsPresentInOrder( cli, "-D", "maven.repo.local=" + lrd.getPath() );
     }
@@ -130,20 +120,8 @@ public class MavenCommandLineBuilderTest
     public void testShouldSetLocalRepoLocationFromRequest()
         throws Exception
     {
-        logTestStart();
-
-        File tmpDir = getTempDir();
-
-        File lrd = new File( tmpDir, "workdir" ).getCanonicalFile();
-
-        lrd.mkdirs();
-        toDelete.add( lrd );
-
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-
-        Commandline cli = new Commandline();
-
-        tcb.setEnvironmentPaths( newRequest().setLocalRepositoryDirectory( lrd ), cli );
+        File lrd = temporaryFolder.newFolder( "workdir" ).getCanonicalFile();
+        mclb.setLocalRepository( newRequest().setLocalRepositoryDirectory( lrd ), cli );
 
         assertArgumentsPresentInOrder( cli, "-D", "maven.repo.local=" + lrd.getPath() );
     }
@@ -152,25 +130,11 @@ public class MavenCommandLineBuilderTest
     public void testRequestProvidedLocalRepoLocationShouldOverrideGlobal()
         throws Exception
     {
-        logTestStart();
+        File lrd = temporaryFolder.newFolder( "workdir" ).getCanonicalFile();
+        File glrd = temporaryFolder.newFolder( "global-workdir" ).getCanonicalFile();
 
-        File tmpDir = getTempDir();
-
-        File lrd = new File( tmpDir, "workdir" ).getCanonicalFile();
-        File glrd = new File( tmpDir, "global-workdir" ).getCanonicalFile();
-
-        lrd.mkdirs();
-        glrd.mkdirs();
-
-        toDelete.add( lrd );
-        toDelete.add( glrd );
-
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setLocalRepositoryDirectory( glrd );
-
-        Commandline cli = new Commandline();
-
-        tcb.setEnvironmentPaths( newRequest().setLocalRepositoryDirectory( lrd ), cli );
+        mclb.setLocalRepositoryDirectory( glrd );
+        mclb.setLocalRepository( newRequest().setLocalRepositoryDirectory( lrd ), cli );
 
         assertArgumentsPresentInOrder( cli, "-D", "maven.repo.local=" + lrd.getPath() );
     }
@@ -179,90 +143,52 @@ public class MavenCommandLineBuilderTest
     public void testShouldSetWorkingDirectoryGlobally()
         throws Exception
     {
-        logTestStart();
+        File wd = temporaryFolder.newFolder( "workdir" );
 
-        File tmpDir = getTempDir();
+        mclb.setBaseDirectory( wd );
+        Commandline commandline = mclb.build( newRequest() );
 
-        File wd = new File( tmpDir, "workdir" );
-
-        wd.mkdirs();
-
-        toDelete.add( wd );
-
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setWorkingDirectory( wd );
-
-        Commandline cli = new Commandline();
-
-        tcb.setEnvironmentPaths( newRequest(), cli );
-
-        assertEquals( cli.getWorkingDirectory(), wd );
+        assertEquals( commandline.getWorkingDirectory(), wd.getCanonicalFile() );
     }
 
     @Test
     public void testShouldSetWorkingDirectoryFromRequest()
         throws Exception
     {
-        logTestStart();
+        File wd = temporaryFolder.newFolder( "workdir" );
 
-        File tmpDir = getTempDir();
-
-        File wd = new File( tmpDir, "workdir" );
-
-        wd.mkdirs();
-
-        toDelete.add( wd );
-
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
         InvocationRequest req = newRequest();
         req.setBaseDirectory( wd );
 
-        Commandline cli = new Commandline();
+        mclb.setupBaseDirectory( req );
 
-        tcb.setEnvironmentPaths( req, cli );
-
-        assertEquals( cli.getWorkingDirectory(), wd );
+        assertEquals( mclb.getBaseDirectory(), wd.getCanonicalFile() );
     }
 
     @Test
     public void testRequestProvidedWorkingDirectoryShouldOverrideGlobal()
         throws Exception
     {
-        logTestStart();
+        File wd = temporaryFolder.newFolder( "workdir" );
+        File gwd = temporaryFolder.newFolder( "global-workdir" );
 
-        File tmpDir = getTempDir();
-
-        File wd = new File( tmpDir, "workdir" );
-        File gwd = new File( tmpDir, "global-workdir" );
-
-        wd.mkdirs();
-        gwd.mkdirs();
-
-        toDelete.add( wd );
-        toDelete.add( gwd );
-
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setWorkingDirectory( gwd );
+        mclb.setBaseDirectory( gwd );
 
         InvocationRequest req = newRequest();
         req.setBaseDirectory( wd );
 
-        Commandline cli = new Commandline();
+        mclb.setupBaseDirectory( req );
 
-        tcb.setEnvironmentPaths( req, cli );
-
-        assertEquals( cli.getWorkingDirectory(), wd );
+        assertEquals( mclb.getBaseDirectory(), wd.getCanonicalFile() );
     }
 
     @Test
     public void testShouldUseSystemOutLoggerWhenNoneSpecified()
         throws Exception
     {
-        logTestStart();
         setupTempMavenHomeIfMissing( false );
 
-        TestCommandLineBuilder tclb = new TestCommandLineBuilder();
-        tclb.checkRequiredState();
+        mclb.checkRequiredState();
     }
 
     private File setupTempMavenHomeIfMissing( boolean forceDummy )
@@ -270,17 +196,14 @@ public class MavenCommandLineBuilderTest
     {
         String mavenHome = System.getProperty( "maven.home" );
 
-        File appDir = null;
+        File appDir;
 
         if ( forceDummy || ( mavenHome == null ) || !new File( mavenHome ).exists() )
         {
-            File tmpDir = getTempDir();
-            appDir = new File( tmpDir, "invoker-tests/maven-home" );
+            appDir = temporaryFolder.newFolder( "invoker-tests", "maven-home" );
 
             File binDir = new File( appDir, "bin" );
-
             binDir.mkdirs();
-            toDelete.add( appDir );
 
             if ( Os.isFamily( Os.FAMILY_WINDOWS ) )
             {
@@ -307,23 +230,15 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testShouldFailIfLoggerSetToNull()
     {
-        logTestStart();
-
-        TestCommandLineBuilder tclb = new TestCommandLineBuilder();
-        tclb.setLogger( null );
+        mclb.setLogger( null );
 
         try
         {
-            tclb.checkRequiredState();
+            mclb.checkRequiredState();
             fail( "Should not allow execution to proceed when logger is missing." );
         }
-        catch ( IllegalStateException e )
+        catch ( IllegalStateException expected )
         {
-            assertTrue( true );
-        }
-        catch ( IOException e )
-        {
-            fail( e.getMessage() );
         }
     }
 
@@ -331,17 +246,7 @@ public class MavenCommandLineBuilderTest
     public void testShouldFindDummyMavenExecutable()
         throws Exception
     {
-        logTestStart();
-
-        File tmpDir = getTempDir();
-
-        File base = new File( tmpDir, "invoker-tests" );
-
-        File dummyMavenHomeBin = new File( base, "dummy-maven-home/bin" );
-
-        dummyMavenHomeBin.mkdirs();
-
-        toDelete.add( base );
+        File dummyMavenHomeBin = temporaryFolder.newFolder( "invoker-tests", "dummy-maven-home", "bin" );
 
         File check;
         if ( Os.isFamily( Os.FAMILY_WINDOWS ) )
@@ -353,23 +258,40 @@ public class MavenCommandLineBuilderTest
             check = createDummyFile( dummyMavenHomeBin, "mvn" );
         }
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setMavenHome( dummyMavenHomeBin.getParentFile() );
+        mclb.setMavenHome( dummyMavenHomeBin.getParentFile() );
+        mclb.setupMavenExecutable( newRequest() );
 
-        File mavenExe = tcb.findMavenExecutable();
+        assertEquals( check.getCanonicalPath(), mclb.getMavenExecutable().getCanonicalPath() );
+    }
 
-        assertEquals( check.getCanonicalPath(), mavenExe.getCanonicalPath() );
+    @Test
+    public void testShouldFindDummyMavenExecutableWithMavenHomeFromRequest()
+        throws Exception
+    {
+        File dummyMavenHomeBin = temporaryFolder.newFolder( "invoker-tests", "dummy-maven-home", "bin" );
+
+        File check;
+        if ( Os.isFamily( Os.FAMILY_WINDOWS ) )
+        {
+            check = createDummyFile( dummyMavenHomeBin, "mvn.bat" );
+        }
+        else
+        {
+            check = createDummyFile( dummyMavenHomeBin, "mvn" );
+        }
+
+        // default value should be not used
+        mclb.setMavenHome( new File( "not-present-1234" ) );
+        mclb.build( newRequest().setMavenHome( dummyMavenHomeBin.getParentFile() ) );
+
+        assertEquals( check.getCanonicalPath(), mclb.getMavenExecutable().getCanonicalPath() );
     }
 
     @Test
     public void testShouldSetBatchModeFlagFromRequest()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setFlags( newRequest().setBatchMode( true ), cli );
+        mclb.setFlags( newRequest().setBatchMode( true ), cli );
 
         assertArgumentsPresent( cli, Collections.singleton( "-B" ) );
     }
@@ -377,12 +299,8 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testShouldSetOfflineFlagFromRequest()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setFlags( newRequest().setOffline( true ), cli );
+        mclb.setFlags( newRequest().setOffline( true ), cli );
 
         assertArgumentsPresent( cli, Collections.singleton( "-o" ) );
     }
@@ -390,12 +308,8 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testShouldSetUpdateSnapshotsFlagFromRequest()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setFlags( newRequest().setUpdateSnapshots( true ), cli );
+        mclb.setFlags( newRequest().setUpdateSnapshots( true ), cli );
 
         assertArgumentsPresent( cli, Collections.singleton( "-U" ) );
     }
@@ -403,12 +317,8 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testShouldSetDebugFlagFromRequest()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setFlags( newRequest().setDebug( true ), cli );
+        mclb.setFlags( newRequest().setDebug( true ), cli );
 
         assertArgumentsPresent( cli, Collections.singleton( "-X" ) );
     }
@@ -416,39 +326,60 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testShouldSetErrorFlagFromRequest()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setFlags( newRequest().setShowErrors( true ), cli );
+        mclb.setFlags( newRequest().setShowErrors( true ), cli );
 
         assertArgumentsPresent( cli, Collections.singleton( "-e" ) );
     }
 
     @Test
+    public void testShouldSetQuietFlagFromRequest()
+    {
+
+        mclb.setFlags( newRequest().setQuiet( true ), cli );
+
+        assertArgumentsPresent( cli, Collections.singleton( "-q" ) );
+    }
+
+    @Test
+    public void testShouldSetNonRecursiveFlagsFromRequest()
+    {
+        mclb.setFlags( newRequest().setRecursive( false ), cli );
+
+        assertArgumentsPresent( cli, Collections.singleton( "-N" ) );
+    }
+
+    @Test
+    public void testShouldSetShowVersionFlagsFromRequest()
+    {
+        mclb.setFlags( newRequest().setShowVersion( true ), cli );
+
+        assertArgumentsPresent( cli, Collections.singleton( "-V" ) );
+    }
+
+    @Test
     public void testDebugOptionShouldMaskShowErrorsOption()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setFlags( newRequest().setDebug( true ).setShowErrors( true ), cli );
+        mclb.setFlags( newRequest().setDebug( true ).setShowErrors( true ), cli );
 
         assertArgumentsPresent( cli, Collections.singleton( "-X" ) );
         assertArgumentsNotPresent( cli, Collections.singleton( "-e" ) );
     }
 
     @Test
+    public void testShouldSetBuilderIdOptionsFromRequest()
+    {
+        mclb.setFlags( newRequest().setBuilder( "builder-id-123" ), cli );
+
+        assertArgumentsPresentInOrder( cli, "-b", "builder-id-123" );
+    }
+
+    @Test
     public void testAlsoMake()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setReactorBehavior( newRequest().setAlsoMake( true ), cli );
+        mclb.setReactorBehavior( newRequest().setAlsoMake( true ), cli );
 
         // -am is only useful with -pl
         assertArgumentsNotPresent( cli, Collections.singleton( "-am" ) );
@@ -457,13 +388,9 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testProjectsAndAlsoMake()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setReactorBehavior( newRequest().setProjects( Collections.singletonList( "proj1" ) ).setAlsoMake( true ),
-                                cli );
+        mclb.setReactorBehavior( newRequest().setProjects( Collections.singletonList( "proj1" ) ).setAlsoMake( true ),
+                                 cli );
 
         assertArgumentsPresentInOrder( cli, "-pl", "proj1", "-am" );
     }
@@ -471,12 +398,8 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testAlsoMakeDependents()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setReactorBehavior( newRequest().setAlsoMakeDependents( true ), cli );
+        mclb.setReactorBehavior( newRequest().setAlsoMakeDependents( true ), cli );
 
         // -amd is only useful with -pl
         assertArgumentsNotPresent( cli, Collections.singleton( "-amd" ) );
@@ -485,12 +408,8 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testProjectsAndAlsoMakeDependents()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setReactorBehavior( newRequest().setProjects( Collections.singletonList( "proj1" ) ).setAlsoMakeDependents( true ),
+        mclb.setReactorBehavior( newRequest().setProjects( Collections.singletonList( "proj1" ) ).setAlsoMakeDependents( true ),
                                 cli );
 
         assertArgumentsPresentInOrder( cli, "-pl", "proj1", "-amd" );
@@ -499,12 +418,8 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testProjectsAndAlsoMakeAndAlsoMakeDependents()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setReactorBehavior( newRequest().setProjects( Collections.singletonList( "proj1" ) ).setAlsoMake( true ).setAlsoMakeDependents( true ),
+        mclb.setReactorBehavior( newRequest().setProjects( Collections.singletonList( "proj1" ) ).setAlsoMake( true ).setAlsoMakeDependents( true ),
                                 cli );
 
         assertArgumentsPresentInOrder( cli, "-pl", "proj1", "-am", "-amd" );
@@ -513,12 +428,8 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testShouldSetResumeFrom()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setReactorBehavior( newRequest().setResumeFrom( ":module3" ), cli );
+        mclb.setReactorBehavior( newRequest().setResumeFrom( ":module3" ), cli );
 
         assertArgumentsPresentInOrder( cli, "-rf", ":module3" );
     }
@@ -526,12 +437,8 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testShouldSetStrictChecksumPolityFlagFromRequest()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setFlags( newRequest().setGlobalChecksumPolicy( InvocationRequest.CheckSumPolicy.Fail ), cli );
+        mclb.setFlags( newRequest().setGlobalChecksumPolicy( InvocationRequest.CheckSumPolicy.Fail ), cli );
 
         assertArgumentsPresent( cli, Collections.singleton( "-C" ) );
     }
@@ -539,12 +446,8 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testShouldSetLaxChecksumPolicyFlagFromRequest()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setFlags( newRequest().setGlobalChecksumPolicy( InvocationRequest.CheckSumPolicy.Warn ), cli );
+        mclb.setFlags( newRequest().setGlobalChecksumPolicy( InvocationRequest.CheckSumPolicy.Warn ), cli );
 
         assertArgumentsPresent( cli, Collections.singleton( "-c" ) );
     }
@@ -552,12 +455,8 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testShouldSetFailAtEndFlagFromRequest()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setReactorBehavior( newRequest().setReactorFailureBehavior( InvocationRequest.ReactorFailureBehavior.FailAtEnd ),
+        mclb.setReactorBehavior( newRequest().setReactorFailureBehavior( InvocationRequest.ReactorFailureBehavior.FailAtEnd ),
                                 cli );
 
         assertArgumentsPresent( cli, Collections.singleton( "-fae" ) );
@@ -566,29 +465,38 @@ public class MavenCommandLineBuilderTest
     @Test
     public void testShouldSetFailNeverFlagFromRequest()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setReactorBehavior( newRequest().setReactorFailureBehavior( InvocationRequest.ReactorFailureBehavior.FailNever ),
+        mclb.setReactorBehavior( newRequest().setReactorFailureBehavior( InvocationRequest.ReactorFailureBehavior.FailNever ),
                                 cli );
 
         assertArgumentsPresent( cli, Collections.singleton( "-fn" ) );
     }
 
+
+    @Test
+    public void testShouldAddArg() throws CommandLineConfigurationException
+    {
+        InvocationRequest request = newRequest()
+            .addArg( "arg1" )
+            .addArg( "arg2" )
+            .setQuiet( true )
+            .setBuilder( "bId" );
+
+        Commandline commandline = mclb.build( request );
+
+        String[] arguments = commandline.getArguments();
+
+        assertArrayEquals( Arrays.asList( "-b", "bId", "-q", "arg1",  "arg2" ).toArray(), arguments );
+    }
+
     @Test
     public void testShouldUseDefaultOfFailFastWhenSpecifiedInRequest()
     {
-        logTestStart();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        Commandline cli = new Commandline();
-
-        tcb.setReactorBehavior( newRequest().setReactorFailureBehavior( InvocationRequest.ReactorFailureBehavior.FailFast ),
+        mclb.setReactorBehavior( newRequest().setReactorFailureBehavior( InvocationRequest.ReactorFailureBehavior.FailFast ),
                                 cli );
 
-        Set<String> banned = new HashSet<String>();
+        Set<String> banned = new HashSet<>();
         banned.add( "-fae" );
         banned.add( "-fn" );
 
@@ -596,228 +504,153 @@ public class MavenCommandLineBuilderTest
     }
 
     @Test
-    public void testShouldSpecifyFileOptionUsingNonStandardPomFileLocation()
-        throws Exception
+    public void testShouldSetNoTransferProgressFlagFromRequest()
     {
-        logTestStart();
-
-        File tmpDir = getTempDir();
-        File base = new File( tmpDir, "invoker-tests" );
-
-        toDelete.add( base );
-
-        File projectDir = new File( base, "file-option-nonstd-pom-file-location" ).getCanonicalFile();
-
-        projectDir.mkdirs();
-
-        File pomFile = createDummyFile( projectDir, "non-standard-pom.xml" ).getCanonicalFile();
-
-        Commandline cli = new Commandline();
-
-        InvocationRequest req = newRequest().setPomFile( pomFile );
-
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setEnvironmentPaths( req, cli );
-        tcb.setPomLocation( req, cli );
-
-        assertEquals( projectDir, cli.getWorkingDirectory() );
-
-        Set<String> args = new HashSet<String>();
-        args.add( "-f" );
-        args.add( "non-standard-pom.xml" );
-
-        assertArgumentsPresent( cli, args );
+        mclb.setFlags( newRequest().setNoTransferProgress( true ), cli );
+        assertArgumentsPresent( cli, Collections.singleton( "-ntp" ) );
     }
 
     @Test
-    public void testShouldSpecifyFileOptionUsingNonStandardPomInBasedir()
+    public void testShouldSpecifyFileOptionUsingNonStandardPomFileLocation()
         throws Exception
     {
-        logTestStart();
+        File projectDir = temporaryFolder.newFolder( "invoker-tests", "file-option-nonstd-pom-file-location" );
 
-        File tmpDir = getTempDir();
-        File base = new File( tmpDir, "invoker-tests" );
+        File pomFile = createDummyFile( projectDir, "non-standard-pom.xml" ).getCanonicalFile();
 
-        toDelete.add( base );
 
-        File projectDir = new File( base, "file-option-nonstd-basedir" ).getCanonicalFile();
+        InvocationRequest req = newRequest().setPomFile( pomFile );
 
-        projectDir.mkdirs();
+        Commandline commandline = mclb.build( req );
 
-        File basedir = createDummyFile( projectDir, "non-standard-pom.xml" ).getCanonicalFile();
+        assertEquals( projectDir.getCanonicalFile(), commandline.getWorkingDirectory() );
 
-        Commandline cli = new Commandline();
-
-        InvocationRequest req = newRequest().setBaseDirectory( basedir );
-
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setEnvironmentPaths( req, cli );
-        tcb.setPomLocation( req, cli );
-
-        assertEquals( projectDir, cli.getWorkingDirectory() );
-
-        Set<String> args = new HashSet<String>();
+        Set<String> args = new HashSet<>();
         args.add( "-f" );
         args.add( "non-standard-pom.xml" );
 
-        assertArgumentsPresent( cli, args );
+        assertArgumentsPresent( commandline, args );
     }
 
     @Test
     public void testShouldNotSpecifyFileOptionUsingStandardPomFileLocation()
         throws Exception
     {
-        logTestStart();
-
-        File tmpDir = getTempDir();
-        File base = new File( tmpDir, "invoker-tests" );
-
-        toDelete.add( base );
-
-        File projectDir = new File( base, "std-pom-file-location" ).getCanonicalFile();
-
-        projectDir.mkdirs();
+        File projectDir = temporaryFolder.newFolder( "invoker-tests", "std-pom-file-location" );
 
         File pomFile = createDummyFile( projectDir, "pom.xml" ).getCanonicalFile();
 
-        Commandline cli = new Commandline();
 
         InvocationRequest req = newRequest().setPomFile( pomFile );
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setEnvironmentPaths( req, cli );
-        tcb.setPomLocation( req, cli );
+        Commandline commandline = mclb.build( req );
 
-        assertEquals( projectDir, cli.getWorkingDirectory() );
+        assertEquals( projectDir.getCanonicalFile(), commandline.getWorkingDirectory() );
 
-        Set<String> args = new HashSet<String>();
+        Set<String> args = new HashSet<>();
         args.add( "-f" );
         args.add( "pom.xml" );
 
-        assertArgumentsNotPresent( cli, args );
+        assertArgumentsNotPresent( commandline, args );
+    }
+
+    @Test
+    public void testShouldSetPomForOutsideWorkspace()
+        throws Exception
+    {
+        File projectDir = temporaryFolder.newFolder( "invoker-tests", "std-pom-file-location" );
+
+        File outsidePom = temporaryFolder.newFile( "pom.xml" );
+
+
+        InvocationRequest req = newRequest()
+            .setBaseDirectory( projectDir )
+            .setPomFile( outsidePom );
+
+        Commandline commandline = mclb.build( req );
+
+        assertEquals( projectDir.getCanonicalFile(), commandline.getWorkingDirectory() );
+
+        Set<String> args = new HashSet<>();
+        args.add( "-f" );
+        args.add( outsidePom.getCanonicalPath() );
+
+        assertArgumentsPresent( commandline, args );
     }
 
     @Test
     public void testShouldNotSpecifyFileOptionUsingStandardPomInBasedir()
         throws Exception
     {
-        logTestStart();
-
-        File tmpDir = getTempDir();
-        File base = new File( tmpDir, "invoker-tests" );
-
-        toDelete.add( base );
-
-        File projectDir = new File( base, "std-basedir-is-pom-file" ).getCanonicalFile();
-
-        projectDir.mkdirs();
+        File projectDir = temporaryFolder.newFolder( "invoker-tests", "std-basedir-is-pom-file" );
 
         File basedir = createDummyFile( projectDir, "pom.xml" ).getCanonicalFile();
 
-        Commandline cli = new Commandline();
 
         InvocationRequest req = newRequest().setBaseDirectory( basedir );
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setEnvironmentPaths( req, cli );
-        tcb.setPomLocation( req, cli );
+        Commandline commandline = mclb.build( req );
 
-        assertEquals( projectDir, cli.getWorkingDirectory() );
+        assertEquals( projectDir.getCanonicalFile(), commandline.getWorkingDirectory() );
 
-        Set<String> args = new HashSet<String>();
+        Set<String> args = new HashSet<>();
         args.add( "-f" );
         args.add( "pom.xml" );
 
-        assertArgumentsNotPresent( cli, args );
+        assertArgumentsNotPresent( commandline, args );
     }
 
     @Test
     public void testShouldUseDefaultPomFileWhenBasedirSpecifiedWithoutPomFileName()
         throws Exception
     {
-        logTestStart();
+        File projectDir = temporaryFolder.newFolder( "invoker-tests", "std-basedir-no-pom-filename" );
 
-        File tmpDir = getTempDir();
-        File base = new File( tmpDir, "invoker-tests" );
-
-        toDelete.add( base );
-
-        File projectDir = new File( base, "std-basedir-no-pom-filename" ).getCanonicalFile();
-
-        projectDir.mkdirs();
-
-        Commandline cli = new Commandline();
 
         InvocationRequest req = newRequest().setBaseDirectory( projectDir );
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setEnvironmentPaths( req, cli );
-        tcb.setPomLocation( req, cli );
+        Commandline commandline = mclb.build( req );
 
-        assertEquals( projectDir, cli.getWorkingDirectory() );
+        assertEquals( projectDir.getCanonicalFile(), commandline.getWorkingDirectory() );
 
-        Set<String> args = new HashSet<String>();
+        Set<String> args = new HashSet<>();
         args.add( "-f" );
         args.add( "pom.xml" );
 
-        assertArgumentsNotPresent( cli, args );
+        assertArgumentsNotPresent( commandline, args );
     }
 
     @Test
     public void testShouldSpecifyPomFileWhenBasedirSpecifiedWithPomFileName()
         throws Exception
     {
-        logTestStart();
-
-        File tmpDir = getTempDir();
-        File base = new File( tmpDir, "invoker-tests" );
-
-        toDelete.add( base );
-
-        File projectDir = new File( base, "std-basedir-with-pom-filename" ).getCanonicalFile();
-
-        projectDir.mkdirs();
-
-        Commandline cli = new Commandline();
+        File projectDir = temporaryFolder.newFolder( "invoker-tests", "std-basedir-with-pom-filename" );
 
         InvocationRequest req = newRequest().setBaseDirectory( projectDir ).setPomFileName( "non-standard-pom.xml" );
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setEnvironmentPaths( req, cli );
-        tcb.setPomLocation( req, cli );
+        Commandline commandline = mclb.build( req );
 
-        assertEquals( projectDir, cli.getWorkingDirectory() );
+        assertEquals( projectDir.getCanonicalFile(), commandline.getWorkingDirectory() );
 
-        Set<String> args = new HashSet<String>();
+        Set<String> args = new HashSet<>();
         args.add( "-f" );
         args.add( "non-standard-pom.xml" );
 
-        assertArgumentsPresent( cli, args );
+        assertArgumentsPresent( commandline, args );
     }
 
     @Test
     public void testShouldSpecifyCustomUserSettingsLocationFromRequest()
         throws Exception
     {
-        logTestStart();
-
-        File tmpDir = getTempDir();
-        File base = new File( tmpDir, "invoker-tests" );
-
-        toDelete.add( base );
-
-        File projectDir = new File( base, "custom-settings" ).getCanonicalFile();
-
-        projectDir.mkdirs();
+        File projectDir = temporaryFolder.newFolder( "invoker-tests", "custom-settings" );
 
         File settingsFile = createDummyFile( projectDir, "settings.xml" );
 
-        Commandline cli = new Commandline();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setSettingsLocation( newRequest().setUserSettingsFile( settingsFile ), cli );
+        mclb.setSettingsLocation( newRequest().setUserSettingsFile( settingsFile ), cli );
 
-        Set<String> args = new HashSet<String>();
+        Set<String> args = new HashSet<>();
         args.add( "-s" );
         args.add( settingsFile.getCanonicalPath() );
 
@@ -828,25 +661,14 @@ public class MavenCommandLineBuilderTest
     public void testShouldSpecifyCustomGlobalSettingsLocationFromRequest()
         throws Exception
     {
-        logTestStart();
-
-        File tmpDir = getTempDir();
-        File base = new File( tmpDir, "invoker-tests" );
-
-        toDelete.add( base );
-
-        File projectDir = new File( base, "custom-settings" ).getCanonicalFile();
-
-        projectDir.mkdirs();
+        File projectDir = temporaryFolder.newFolder( "invoker-tests", "custom-settings" ).getCanonicalFile();
 
         File settingsFile = createDummyFile( projectDir, "settings.xml" );
 
-        Commandline cli = new Commandline();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setSettingsLocation( newRequest().setGlobalSettingsFile( settingsFile ), cli );
+        mclb.setSettingsLocation( newRequest().setGlobalSettingsFile( settingsFile ), cli );
 
-        Set<String> args = new HashSet<String>();
+        Set<String> args = new HashSet<>();
         args.add( "-gs" );
         args.add( settingsFile.getCanonicalPath() );
 
@@ -857,25 +679,14 @@ public class MavenCommandLineBuilderTest
     public void testShouldSpecifyCustomToolchainsLocationFromRequest()
         throws Exception
     {
-        logTestStart();
-
-        File tmpDir = getTempDir();
-        File base = new File( tmpDir, "invoker-tests" );
-
-        toDelete.add( base );
-
-        File projectDir = new File( base, "custom-toolchains" ).getCanonicalFile();
-
-        projectDir.mkdirs();
+        File projectDir = temporaryFolder.newFolder( "invoker-tests", "custom-toolchains" );
 
         File toolchainsFile = createDummyFile( projectDir, "toolchains.xml" );
 
-        Commandline cli = new Commandline();
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setToolchainsLocation( newRequest().setToolchainsFile( toolchainsFile ), cli );
+        mclb.setToolchainsLocation( newRequest().setToolchainsFile( toolchainsFile ), cli );
 
-        Set<String> args = new HashSet<String>();
+        Set<String> args = new HashSet<>();
         args.add( "-t" );
         args.add( toolchainsFile.getCanonicalPath() );
 
@@ -884,101 +695,69 @@ public class MavenCommandLineBuilderTest
 
     @Test
     public void testShouldSpecifyCustomPropertyFromRequest()
-        throws IOException
     {
-        logTestStart();
-
-        Commandline cli = new Commandline();
 
         Properties properties = new Properties();
         properties.setProperty( "key", "value" );
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setProperties( newRequest().setProperties( properties ), cli );
+        mclb.setProperties( newRequest().setProperties( properties ), cli );
 
         assertArgumentsPresentInOrder( cli, "-D", "key=value" );
     }
 
     @Test
     public void testShouldSpecifyCustomPropertyWithSpacesInValueFromRequest()
-        throws IOException
     {
-        logTestStart();
-
-        Commandline cli = new Commandline();
 
         Properties properties = new Properties();
         properties.setProperty( "key", "value with spaces" );
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setProperties( newRequest().setProperties( properties ), cli );
+        mclb.setProperties( newRequest().setProperties( properties ), cli );
 
         assertArgumentsPresentInOrder( cli, "-D", "key=value with spaces" );
     }
 
     @Test
     public void testShouldSpecifyCustomPropertyWithSpacesInKeyFromRequest()
-        throws IOException
     {
-        logTestStart();
-
-        Commandline cli = new Commandline();
 
         Properties properties = new Properties();
         properties.setProperty( "key with spaces", "value with spaces" );
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setProperties( newRequest().setProperties( properties ), cli );
+        mclb.setProperties( newRequest().setProperties( properties ), cli );
 
         assertArgumentsPresentInOrder( cli, "-D", "key with spaces=value with spaces" );
     }
 
     @Test
-    public void testShouldSpecifySingleGoalFromRequest()
-        throws IOException
+    public void testShouldSpecifySingleGoalFromRequest() throws CommandLineConfigurationException
     {
-        logTestStart();
 
-        Commandline cli = new Commandline();
-
-        List<String> goals = new ArrayList<String>();
+        List<String> goals = new ArrayList<>();
         goals.add( "test" );
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setGoals( newRequest().setGoals( goals ), cli );
+        mclb.setGoals( newRequest().setGoals( goals ), cli );
 
         assertArgumentsPresent( cli, Collections.singleton( "test" ) );
     }
 
     @Test
-    public void testShouldSpecifyTwoGoalsFromRequest()
-        throws IOException
+    public void testShouldSpecifyTwoGoalsFromRequest() throws CommandLineConfigurationException
     {
-        logTestStart();
-
-        Commandline cli = new Commandline();
-
-        List<String> goals = new ArrayList<String>();
+        List<String> goals = new ArrayList<>();
         goals.add( "test" );
         goals.add( "clean" );
 
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setGoals( newRequest().setGoals( goals ), cli );
+        mclb.setGoals( newRequest().setGoals( goals ), cli );
 
-        assertArgumentsPresent( cli, new HashSet<String>( goals ) );
+        assertArgumentsPresent( cli, new HashSet<>( goals ) );
         assertArgumentsPresentInOrder( cli, goals );
     }
 
     @Test
     public void testShouldSpecifyThreadsFromRequest()
-        throws IOException
     {
-        logTestStart();
-
-        Commandline cli = new Commandline();
-
-        TestCommandLineBuilder tcb = new TestCommandLineBuilder();
-        tcb.setThreads( newRequest().setThreads( "2.0C" ), cli );
+        mclb.setThreads( newRequest().setThreads( "2.0C" ), cli );
 
         assertArgumentsPresentInOrder( cli, "-T", "2.0C" );
     }
@@ -987,21 +766,16 @@ public class MavenCommandLineBuilderTest
     public void testBuildTypicalMavenInvocationEndToEnd()
         throws Exception
     {
-        logTestStart();
         File mavenDir = setupTempMavenHomeIfMissing( false );
 
         InvocationRequest request = newRequest();
 
-        File tmpDir = getTempDir();
-        File projectDir = new File( tmpDir, "invoker-tests/typical-end-to-end-cli-build" );
-
-        projectDir.mkdirs();
-        toDelete.add( projectDir.getParentFile() );
+        File projectDir = temporaryFolder.newFolder( "invoker-tests", "typical-end-to-end-cli-build" );
 
         request.setBaseDirectory( projectDir );
 
-        Set<String> expectedArgs = new HashSet<String>();
-        Set<String> bannedArgs = new HashSet<String>();
+        Set<String> expectedArgs = new HashSet<>();
+        Set<String> bannedArgs = new HashSet<>();
 
         createDummyFile( projectDir, "pom.xml" );
 
@@ -1020,7 +794,7 @@ public class MavenCommandLineBuilderTest
 
         expectedArgs.add( "-o" );
 
-        List<String> goals = new ArrayList<String>();
+        List<String> goals = new ArrayList<>();
 
         goals.add( "post-clean" );
         goals.add( "deploy" );
@@ -1028,9 +802,7 @@ public class MavenCommandLineBuilderTest
 
         request.setGoals( goals );
 
-        MavenCommandLineBuilder commandLineBuilder = new MavenCommandLineBuilder();
-
-        Commandline commandline = commandLineBuilder.build( request );
+        Commandline commandline = mclb.build( request );
 
         assertArgumentsPresent( commandline, expectedArgs );
         assertArgumentsNotPresent( commandline, bannedArgs );
@@ -1038,51 +810,8 @@ public class MavenCommandLineBuilderTest
 
         String executable = commandline.getExecutable();
 
-        assertTrue( executable.indexOf( new File( mavenDir, "bin/mvn" ).getCanonicalPath() ) > -1 );
+        assertTrue( executable.contains( new File( mavenDir, "bin/mvn" ).getCanonicalPath() ) );
         assertEquals( projectDir.getCanonicalPath(), commandline.getWorkingDirectory().getCanonicalPath() );
-    }
-
-    @Test
-    public void testShouldSetEnvVar_MAVEN_TERMINATE_CMD()
-        throws Exception
-    {
-        logTestStart();
-        setupTempMavenHomeIfMissing( false );
-
-        InvocationRequest request = newRequest();
-
-        File tmpDir = getTempDir();
-        File projectDir = new File( tmpDir, "invoker-tests/maven-terminate-cmd-options-set" );
-
-        projectDir.mkdirs();
-        toDelete.add( projectDir.getParentFile() );
-
-        request.setBaseDirectory( projectDir );
-
-        createDummyFile( projectDir, "pom.xml" );
-
-        List<String> goals = new ArrayList<String>();
-
-        goals.add( "clean" );
-        request.setGoals( goals );
-
-        MavenCommandLineBuilder commandLineBuilder = new MavenCommandLineBuilder();
-
-        Commandline commandline = commandLineBuilder.build( request );
-
-        String[] environmentVariables = commandline.getEnvironmentVariables();
-        String envVarMavenTerminateCmd = null;
-        for ( int i = 0; i < environmentVariables.length; i++ )
-        {
-            String envVar = environmentVariables[i];
-            if ( envVar.startsWith( "MAVEN_TERMINATE_CMD=" ) )
-            {
-                envVarMavenTerminateCmd = envVar;
-                break;
-            }
-        }
-        assertEquals( "MAVEN_TERMINATE_CMD=on", envVarMavenTerminateCmd );
-
     }
 
     @Test
@@ -1096,74 +825,61 @@ public class MavenCommandLineBuilderTest
 
         InvocationRequest request = newRequest();
 
-        List<String> profiles = new ArrayList<String>();
+        List<String> profiles = new ArrayList<>();
         profiles.add( profile1 );
         profiles.add( profile2 );
 
         request.setProfiles( profiles );
 
-        MavenCommandLineBuilder commandLineBuilder = new MavenCommandLineBuilder();
-
-        Commandline commandline = commandLineBuilder.build( request );
+        Commandline commandline = mclb.build( request );
 
         assertArgumentsPresentInOrder( commandline, "-P", profile1 + "," + profile2 );
     }
 
     @Test
-    public void testShouldSetEnvVar_M2_HOME()
+    public void testMvnExecutableFromInvoker()
         throws Exception
     {
-        Assume.assumeNotNull( System.getenv( "M2_HOME" ) );
+        assumeThat( "Test only works when maven.home is set",
+            System.getProperty( "maven.home" ), is(notNullValue()));
 
-        logTestStart();
-        setupTempMavenHomeIfMissing( true );
+        File mavenExecutable = new File( "mvnDebug" );
 
-        InvocationRequest request = newRequest();
+        mclb.setMavenExecutable( mavenExecutable );
+        mclb.build( newRequest() );
 
-        File tmpDir = getTempDir();
-        File projectDir = new File( tmpDir, "invoker-tests/maven-terminate-cmd-options-set" );
-
-        projectDir.mkdirs();
-        toDelete.add( projectDir.getParentFile() );
-
-        request.setBaseDirectory( projectDir );
-
-        createDummyFile( projectDir, "pom.xml" );
-
-        List<String> goals = new ArrayList<String>();
-
-        goals.add( "clean" );
-        request.setGoals( goals );
-
-        MavenCommandLineBuilder commandLineBuilder = new MavenCommandLineBuilder();
-        File mavenHome2 = new File( System.getProperty( "maven.home" ) );
-        commandLineBuilder.setMavenHome( mavenHome2 );
-
-        Commandline commandline = commandLineBuilder.build( request );
-
-        String[] environmentVariables = commandline.getEnvironmentVariables();
-        String m2Home = null;
-        for ( int i = 0; i < environmentVariables.length; i++ )
-        {
-            String envVar = environmentVariables[i];
-            if ( envVar.startsWith( "M2_HOME=" ) )
-            {
-                m2Home = envVar;
-            }
-        }
-        assertEquals( "M2_HOME=" + mavenHome2.getAbsolutePath(), m2Home );
+        assertTrue( "Expected executable to exist", mclb.getMavenExecutable().exists() );
+        assertTrue( "Expected executable to be absolute", mclb.getMavenExecutable().isAbsolute() );
+        assertTrue( "Expected mvnDebug as command mvnDebug", mclb.getMavenExecutable().getName().contains( "mvnDebug" ) );
     }
 
     @Test
-    public void testMvnCommand()
+    public void testMvnExecutableFormRequest()
         throws Exception
     {
-        MavenCommandLineBuilder commandLineBuilder = new MavenCommandLineBuilder();
+        assumeThat( "Test only works when maven.home is set",
+            System.getProperty( "maven.home" ), is(notNullValue()));
+
         File mavenExecutable = new File( "mvnDebug" );
-        commandLineBuilder.setMavenExecutable( mavenExecutable );
-        File executable = commandLineBuilder.findMavenExecutable();
-        assertTrue( "Expected executable to exist", executable.exists() );
-        assertTrue( "Expected executable to be absolute", executable.isAbsolute() );
+
+        mclb.build( newRequest().setMavenExecutable( mavenExecutable ) );
+
+        assertTrue( "Expected executable to exist", mclb.getMavenExecutable().exists() );
+        assertTrue( "Expected executable to be absolute", mclb.getMavenExecutable().isAbsolute() );
+        assertTrue( "Expected mvnDebug as command", mclb.getMavenExecutable().getName().contains( "mvnDebug" ) );
+    }
+
+    @Test
+    public void testDefaultMavenCommand()
+        throws Exception
+    {
+        assumeThat( "Test only works when maven.home is set",
+            System.getProperty( "maven.home" ), is(notNullValue()));
+
+        mclb.build( newRequest() );
+
+        assertTrue( "Expected executable to exist", mclb.getMavenExecutable().exists() );
+        assertTrue( "Expected executable to be absolute", mclb.getMavenExecutable().isAbsolute() );
     }
 
     @Test
@@ -1183,63 +899,19 @@ public class MavenCommandLineBuilderTest
         request.addShellEnvironment( envVar1Name, envVar1Value );
         request.addShellEnvironment( envVar2Name, envVar2Value );
 
-        MavenCommandLineBuilder commandLineBuilder = new MavenCommandLineBuilder();
-
-        Commandline commandline = commandLineBuilder.build( request );
+        Commandline commandline = mclb.build( request );
 
         assertEnvironmentVariablePresent( commandline, envVar1Name, envVar1Value );
         assertEnvironmentVariablePresent( commandline, envVar2Name, envVar2Value );
     }
 
-    @Before
-    public void setUp()
-    {
-        sysProps = System.getProperties();
-
-        Properties p = new Properties( sysProps );
-
-        System.setProperties( p );
-    }
-
-    @After
-    public void tearDown()
-        throws IOException
-    {
-        System.setProperties( sysProps );
-
-        for ( File file : toDelete )
-        {
-            if ( file.exists() )
-            {
-                if ( file.isDirectory() )
-                {
-                    FileUtils.deleteDirectory( file );
-                }
-                else
-                {
-                    file.delete();
-                }
-            }
-        }
-    }
-
-    // this is just a debugging helper for separating unit test output...
-    private void logTestStart()
-    {
-        NullPointerException npe = new NullPointerException();
-        StackTraceElement element = npe.getStackTrace()[1];
-
-        System.out.println( "Starting: " + element.getMethodName() );
-    }
-
     private void assertEnvironmentVariablePresent( Commandline cli, String varName, String varValue )
-        throws CommandLineException
     {
         List<String> environmentVariables = Arrays.asList( cli.getEnvironmentVariables() );
 
         String expectedDeclaration = varName + "=" + varValue;
 
-        assertTrue( "Environment variable setting: \'" + expectedDeclaration + "\' is mssing in "
+        assertTrue( "Environment variable setting: '" + expectedDeclaration + "' is mssing in "
             + environmentVariables, environmentVariables.contains( expectedDeclaration ) );
     }
 
@@ -1254,9 +926,9 @@ public class MavenCommandLineBuilderTest
 
         int expectedCounter = 0;
 
-        for ( int i = 0; i < arguments.length; i++ )
+        for ( String argument : arguments )
         {
-            if ( arguments[i].equals( expected.get( expectedCounter ) ) )
+            if ( argument.equals( expected.get( expectedCounter ) ) )
             {
                 expectedCounter++;
             }
@@ -1273,7 +945,7 @@ public class MavenCommandLineBuilderTest
 
         for ( String arg : requiredArgs )
         {
-            assertTrue( "Command-line argument: \'" + arg + "\' is missing in " + args, args.contains( arg ) );
+            assertTrue( "Command-line argument: '" + arg + "' is missing in " + args, args.contains( arg ) );
         }
     }
 
@@ -1284,7 +956,7 @@ public class MavenCommandLineBuilderTest
 
         for ( String arg : bannedArgs )
         {
-            assertFalse( "Command-line argument: \'" + arg + "\' should not be present.", args.contains( arg ) );
+            assertFalse( "Command-line argument: '" + arg + "' should not be present.", args.contains( arg ) );
         }
     }
 
@@ -1293,84 +965,12 @@ public class MavenCommandLineBuilderTest
     {
         File dummyFile = new File( directory, filename );
 
-        FileWriter writer = null;
-        try
+        try ( FileWriter writer = new FileWriter( dummyFile ) )
         {
-            writer = new FileWriter( dummyFile );
             writer.write( "This is a dummy file." );
         }
-        finally
-        {
-            IOUtil.close( writer );
-        }
-
-        toDelete.add( dummyFile );
 
         return dummyFile;
-    }
-
-    private static final class TestCommandLineBuilder
-        extends MavenCommandLineBuilder
-    {
-        public void checkRequiredState()
-            throws IOException
-        {
-            super.checkRequiredState();
-        }
-
-        public File findMavenExecutable()
-            throws CommandLineConfigurationException, IOException
-        {
-            return super.findMavenExecutable();
-        }
-
-        public void setEnvironmentPaths( InvocationRequest request, Commandline cli )
-        {
-            super.setEnvironmentPaths( request, cli );
-        }
-
-        public void setFlags( InvocationRequest request, Commandline cli )
-        {
-            super.setFlags( request, cli );
-        }
-
-        public void setGoals( InvocationRequest request, Commandline cli )
-        {
-            super.setGoals( request, cli );
-        }
-
-        public void setPomLocation( InvocationRequest request, Commandline cli )
-        {
-            super.setPomLocation( request, cli );
-        }
-
-        public void setProperties( InvocationRequest request, Commandline cli )
-        {
-            super.setProperties( request, cli );
-        }
-
-        public void setReactorBehavior( InvocationRequest request, Commandline cli )
-        {
-            super.setReactorBehavior( request, cli );
-        }
-
-        public void setSettingsLocation( InvocationRequest request, Commandline cli )
-        {
-            super.setSettingsLocation( request, cli );
-        }
-
-        public void setShellEnvironment( InvocationRequest request, Commandline cli )
-            throws CommandLineConfigurationException
-        {
-            super.setShellEnvironment( request, cli );
-        }
-
-    }
-
-    private File getTempDir()
-        throws Exception
-    {
-        return new File( System.getProperty( "java.io.tmpdir" ) ).getCanonicalFile();
     }
 
     private InvocationRequest newRequest()
